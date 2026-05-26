@@ -6,6 +6,9 @@ In this guide you will learn how to use the Gemini CLI Assistant via GitHub Acti
   - [Overview](#overview)
   - [Features](#features)
   - [Setup](#setup)
+    - [Prerequisites](#prerequisites)
+    - [Setup Methods](#setup-methods)
+  - [Dependencies](#dependencies)
   - [Usage](#usage)
     - [Supported Triggers](#supported-triggers)
     - [How to Invoke the Gemini CLI Workflow](#how-to-invoke-the-gemini-cli-workflow)
@@ -32,14 +35,39 @@ Unlike specialized Gemini CLI workflows for [pull request reviews](../pr-review)
 
 For detailed setup instructions, including prerequisites and authentication, please refer to the main [Getting Started](../../../README.md#quick-start) section and [Authentication documentation](../../../docs/authentication.md).
 
+### Prerequisites
+
+Add the following entries to your `.gitignore` file to prevent Gemini CLI artifacts from being committed:
+
+```gitignore
+# gemini-cli settings
+.gemini/
+
+# GitHub App credentials
+gha-creds-*.json
+```
+
+### Setup Methods
+
 To use this workflow, you can utilize either of the following methods:
+
 1. Run the `/setup-github` command in Gemini CLI on your terminal to set up workflows for your repository.
-2. Copy the `gemini-cli.yml` file into your repository's `.github/workflows` directory:
+2. Copy the workflow files into your repository's `.github/workflows` directory:
 
 ```bash
 mkdir -p .github/workflows
-curl -o .github/workflows/gemini-cli.yml https://raw.githubusercontent.com/google-github-actions/run-gemini-cli/main/examples/workflows/gemini-cli/gemini-cli.yml
+curl -o .github/workflows/gemini-dispatch.yml https://raw.githubusercontent.com/google-github-actions/run-gemini-cli/main/examples/workflows/gemini-dispatch/gemini-dispatch.yml
+curl -o .github/workflows/gemini-invoke.yml https://raw.githubusercontent.com/google-github-actions/run-gemini-cli/main/examples/workflows/gemini-assistant/gemini-invoke.yml
+curl -o .github/workflows/gemini-plan-execute.yml https://raw.githubusercontent.com/google-github-actions/run-gemini-cli/main/examples/workflows/gemini-assistant/gemini-plan-execute.yml
 ```
+
+> **Note:** The `gemini-dispatch.yml` workflow is designed to call multiple
+> workflows. If you are only setting up `gemini-invoke.yml` and `gemini-plan-execute.yml`, you should comment out or
+> remove the other jobs in your copy of `gemini-dispatch.yml`.
+
+## Dependencies
+
+This workflow relies on the [gemini-dispatch.yml](../gemini-dispatch/gemini-dispatch.yml) workflow to route requests to the appropriate workflow.
 
 ## Usage
 
@@ -51,7 +79,7 @@ The Gemini CLI Assistant workflow is triggered by new comments in:
 - GitHub Pull Request review comments
 - GitHub Issues
 
-The Gemini CLI Assistant workflow is intentionally configured *not* to respond to comments containing `/review` or `/triage` to avoid conflicts with other dedicated workflows (such as [the Gemini CLI Pull Request workflow](../pr-review) or [the issue triage workflow](../issue-triage)).
+The Gemini CLI Assistant workflow is intentionally configured _not_ to respond to comments containing `/review` or `/triage` to avoid conflicts with other dedicated workflows (such as [the Gemini CLI Pull Request workflow](../pr-review) or [the issue triage workflow](../issue-triage)).
 
 ### How to Invoke the Gemini CLI Workflow
 
@@ -104,18 +132,40 @@ flowchart TD
 ```
 
 1.  **Acknowledge**: The action first posts a brief comment to let the user know the request has been received.
-2.  **Plan (if needed)**: For requests that may involve code changes or complex actions, the AI will first create a step-by-step plan. It will post this plan as a comment and wait for the user to approve it by replying with `@gemini-cli plan#123 approved`. This ensures the user has full control before any changes are made.
+2.  **Plan (if needed)**: For requests that may involve code changes or complex actions, the AI will first create a step-by-step plan. It will post this plan as a comment and wait for the user to approve it by replying with `@gemini-cli /approve`. This ensures the user has full control before any changes are made.
 3.  **Execute**: Once the plan is approved (or if no plan was needed), it runs the Gemini model, providing it with the user's request, repository context, and a set of tools.
 4.  **Commit (if needed)**: If the AI uses tools to modify files, it will automatically commit and push the changes to the branch.
 5.  **Respond**: The AI posts a final, comprehensive response as a comment on the issue or pull request.
 
 ## Configuration
 
-The Gemini CLI system prompt, located in the `prompt` input, defines the Gemini AI's role and instructions. You can edit this prompt to, for example:
+The Gemini CLI assistant prompts are defined in the `gemini-invoke.toml` and `gemini-plan-execute.toml` files. The action automatically copies these files from `.github/commands/` to `.gemini/commands/` during execution.
 
-- Change its persona or primary function.
-- Add project-specific guidelines or context.
-- Instruct it to format its output in a specific way.
+**To customize the assistant prompt:**
+
+1. Copy the TOML file to your repository:
+
+   ```bash
+   mkdir -p .gemini/commands
+   curl -o .gemini/commands/gemini-invoke.toml https://raw.githubusercontent.com/google-github-actions/run-gemini-cli/main/examples/workflows/gemini-assistant/gemini-invoke.toml
+   curl -o .gemini/commands/gemini-plan-execute.toml https://raw.githubusercontent.com/google-github-actions/run-gemini-cli/main/examples/workflows/gemini-assistant/gemini-plan-execute.toml
+   ```
+
+2. Edit `.gemini/commands/gemini-invoke.toml` and `.gemini/commands/gemini-plan-execute.toml` to customize:
+   - Change its persona or primary function
+   - Add project-specific guidelines or context
+   - Instruct it to format its output in a specific way
+   - Modify security constraints or workflow steps
+
+3. Commit the file to your repository:
+   ```bash
+   git add .gemini/commands/gemini-invoke.toml
+   git commit -m "feat: customize Gemini assistant prompt"
+   ```
+
+The workflow will use your custom TOML file instead of the default one from the action.
+
+For more details on workflow configuration, see the [Configuration Guide](../CONFIGURATION.md#custom-commands-toml-files).
 
 ## Examples
 
